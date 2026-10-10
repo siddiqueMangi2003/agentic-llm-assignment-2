@@ -163,6 +163,9 @@ cython_debug/
 /wandb
 /models
 /outputs
+/results
+/slurm-*.out
+/vllm-*.log
 /tw_games
 tw-games.zip
 /records

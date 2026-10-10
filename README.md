@@ -4,6 +4,8 @@
   </a>
 </p>
 
+> Leiden Agentic LLM Assignment 2: see [ASSIGNMENT.md](ASSIGNMENT.md) for the research question, experiment plan, and REL commands.
+
 ---
 
 # BALROG: Benchmarking Agentic LLM and VLM Reasoning On Games
