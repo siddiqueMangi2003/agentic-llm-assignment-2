@@ -11,6 +11,10 @@ set -euo pipefail
 
 MODEL_ID="${MODEL_ID:-Qwen/Qwen2.5-7B-Instruct}"
 PORT="${PORT:-8080}"
+export HF_HOME="${HF_HOME:-/local/${USER}/huggingface}"
+export TMPDIR="${TMPDIR:-/local/${USER}/tmp}"
+
+mkdir -p "$HF_HOME" "$TMPDIR"
 
 command -v python >/dev/null
 command -v vllm >/dev/null
