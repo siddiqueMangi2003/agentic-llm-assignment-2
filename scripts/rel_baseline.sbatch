@@ -11,7 +11,7 @@ set -euo pipefail
 
 MODEL_ID="${MODEL_ID:-Qwen/Qwen2.5-7B-Instruct}"
 PORT="${PORT:-8080}"
-CACHE_ROOT="/local/${USER}/balrog"
+CACHE_ROOT="/tmp/${USER}/balrog"
 export HF_HOME="${CACHE_ROOT}/huggingface"
 export HF_HUB_CACHE="${HF_HOME}/hub"
 export HF_TOKEN_PATH="${HF_HOME}/token"
