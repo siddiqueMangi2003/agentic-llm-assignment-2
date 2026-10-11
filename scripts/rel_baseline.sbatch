@@ -1,10 +1,10 @@
 #!/usr/bin/env bash
-#SBATCH --job-name=balrog-smoke
+#SBATCH --job-name=balrog-baseline
 #SBATCH --partition=L40s_lu
 #SBATCH --gres=gpu:1
 #SBATCH --cpus-per-task=4
 #SBATCH --mem=32G
-#SBATCH --time=00:30:00
+#SBATCH --time=02:00:00
 #SBATCH --output=slurm-%x-%j.out
 
 set -euo pipefail
@@ -34,7 +34,7 @@ vllm serve "$MODEL_ID" \
 server_pid=$!
 trap 'kill "$server_pid" 2>/dev/null || true' EXIT
 
-for _ in {1..60}; do
+for _ in {1..240}; do
   if curl -fsS "http://127.0.0.1:${PORT}/v1/models" >/dev/null; then
     break
   fi
@@ -47,15 +47,19 @@ done
 
 curl -fsS "http://127.0.0.1:${PORT}/v1/models" >/dev/null
 
-for agent in naive custom stall_reflection; do
-  python eval.py \
-    agent.type="$agent" \
-    envs.names=crafter \
-    eval.num_episodes.crafter=1 \
-    eval.max_steps_per_episode=5 \
-    eval.num_workers=1 \
-    client.client_name=vllm \
-    client.model_id="$MODEL_ID" \
-    client.base_url="http://127.0.0.1:${PORT}/v1" \
-    client.generate_kwargs.temperature=0
-done
+python eval.py \
+  agent.type=naive \
+  envs.names=babyai-crafter-minihack \
+  'tasks.babyai_tasks=[BabyAI-MixedTrainLocal-v0/goto]' \
+  'tasks.minihack_tasks=[MiniHack-MazeWalk-9x9-v0]' \
+  eval.num_episodes.babyai=1 \
+  eval.num_episodes.crafter=1 \
+  eval.num_episodes.minihack=1 \
+  eval.max_steps_per_episode=50 \
+  eval.num_workers=1 \
+  envs.env_kwargs.seed=42 \
+  client.client_name=vllm \
+  client.model_id="$MODEL_ID" \
+  client.base_url="http://127.0.0.1:${PORT}/v1" \
+  client.generate_kwargs.temperature=0 \
+  client.generate_kwargs.max_tokens=1024

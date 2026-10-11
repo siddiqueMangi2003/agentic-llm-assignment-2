@@ -20,9 +20,9 @@ The instructor-provided `BALROG_sweep_final.log` is a reference for choosing exp
 
 ## Minimal workflow
 
-1. Run the smoke job on Crafter. It checks installation, model serving, all three agents, and result writing.
-2. Inspect the generated trajectory CSV files. Confirm that actions are valid and reflection occurs only after a repeated action.
-3. Run a small pilot on BabyAI, Crafter, and MiniHack with identical model settings for every agent.
+1. Run the Qwen baseline on BabyAI, Crafter, and MiniHack.
+2. Run `custom` and `stall_reflection` with identical model settings and seeds.
+3. Inspect trajectory CSV files and confirm that reflection occurs only after a repeated action.
 4. Repeat runs with recorded seeds. Expand the number of runs only when the pilot is unstable.
 5. Report mean progression and variation, token usage, representative trajectories, failures, and the exact commands used.
 
@@ -41,11 +41,11 @@ Clone this group repository on the frontend, create a Python 3.10 environment, a
 After the environment is installed and activated:
 
 ```bash
-sbatch scripts/rel_smoke.sbatch
+sbatch scripts/rel_baseline.sbatch
 squeue -u "$USER"
 ```
 
-The smoke job writes its scheduler log to `slurm-balrog-smoke-<job-id>.out` and BALROG outputs under `results/`. Both paths are ignored by Git.
+The baseline job writes its scheduler log to `slurm-balrog-baseline-<job-id>.out` and BALROG outputs under `results/`. Both paths are ignored by Git.
 
 ## Team split
 
