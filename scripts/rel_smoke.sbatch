@@ -11,10 +11,14 @@ set -euo pipefail
 
 MODEL_ID="${MODEL_ID:-Qwen/Qwen2.5-7B-Instruct}"
 PORT="${PORT:-8080}"
-export HF_HOME="${HF_HOME:-/local/${USER}/huggingface}"
-export TMPDIR="${TMPDIR:-/local/${USER}/tmp}"
+CACHE_ROOT="/local/${USER}/balrog"
+export HF_HOME="${CACHE_ROOT}/huggingface"
+export HF_HUB_CACHE="${HF_HOME}/hub"
+export HF_TOKEN_PATH="${HF_HOME}/token"
+export XDG_CACHE_HOME="${CACHE_ROOT}/cache"
+export TMPDIR="${CACHE_ROOT}/tmp"
 
-mkdir -p "$HF_HOME" "$TMPDIR"
+mkdir -p "$HF_HUB_CACHE" "$XDG_CACHE_HOME" "$TMPDIR"
 
 command -v python >/dev/null
 command -v vllm >/dev/null
