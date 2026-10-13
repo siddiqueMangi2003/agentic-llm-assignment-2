@@ -23,6 +23,7 @@ mkdir -p "$HF_HUB_CACHE" "$XDG_CACHE_HOME" "$TMPDIR"
 command -v python >/dev/null
 command -v vllm >/dev/null
 command -v curl >/dev/null
+python -c "import eval"
 nvidia-smi
 
 vllm serve "$MODEL_ID" \
