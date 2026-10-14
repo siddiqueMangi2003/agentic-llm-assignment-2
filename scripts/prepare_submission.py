@@ -28,7 +28,9 @@ def collect_rows(results):
             raise ValueError(f"Duplicate episode: {key}. Keep one version of each experiment.")
         seen.add(key)
         with path.with_suffix(".csv").open(encoding="utf-8", newline="") as trajectory:
-            reflections = sum("REFLECTION:" in step["Reasoning"] for step in csv.DictReader(trajectory))
+            # NetHack observations contain NULs; remove them for parsing, leaving raw files intact.
+            lines = (line.replace("\x00", "") for line in trajectory)
+            reflections = sum("REFLECTION:" in step["Reasoning"] for step in csv.DictReader(lines, escapechar="˘"))
         rows.append(dict(zip(("client", "model", "agent", "benchmark", "task", "seed"), key),
                          progression=100 * episode["progression"], steps=episode["num_steps"],
                          invalid_actions=len(episode["failed_candidates"]), reflections=reflections,

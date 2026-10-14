@@ -53,6 +53,26 @@ def test_scores_variation_and_critic_counts(tmp_path):
     assert performance_table(rows[:1])[0]["sd_progression"] is None
 
 
+def test_nethack_control_characters_are_removed_only_while_reading(tmp_path, monkeypatch):
+    run = write_episode(tmp_path, "first", 42, 0)
+    path = run / "babyai" / "task_run_00.csv"
+    with path.open("w", encoding="utf-8", newline="") as stream:
+        writer = csv.DictWriter(stream, fieldnames=["Reasoning", "Observation"], escapechar="˘")
+        writer.writeheader()
+        writer.writerow({"Reasoning": "REFLECTION: investigate\nPLAN: explore", "Observation": 'map\x00\n"room"˘'})
+    original = path.read_bytes()
+    reader = csv.DictReader
+
+    def python310_reader(lines, **kwargs):
+        lines = list(lines)
+        assert all("\x00" not in line for line in lines)
+        return reader(lines, **kwargs)
+
+    monkeypatch.setattr(csv, "DictReader", python310_reader)
+    assert collect_rows(tmp_path)[0]["reflections"] == 1
+    assert path.read_bytes() == original
+
+
 def test_duplicates_fail_and_incomplete_runs_are_excluded(tmp_path):
     write_episode(tmp_path, "first", 42, 1)
     duplicate = write_episode(tmp_path, "second", 42, 0)
