@@ -504,16 +504,8 @@ class GoogleGenerativeAIWrapper(LLMClientWrapper):
                     reasoning=reasoning,
                 )
         except Exception as e:
-            logger.error(f"API call failed after {self.max_retries} retries: {e}. Returning empty completion.")
-            # Return a default response indicating failure
-            return LLMResponse(
-                model_id=self.model_id,
-                completion="",
-                stop_reason="error_max_retries",
-                input_tokens=0, # Assuming 0 tokens consumed if call failed
-                output_tokens=0,
-                reasoning=None,
-            )
+            # An unavailable API is not evidence that the model failed a reasoning task.
+            raise RuntimeError(f"Cloud inference failed for {self.model_id}; evaluation stopped.") from e
 
 
 class ClaudeWrapper(LLMClientWrapper):

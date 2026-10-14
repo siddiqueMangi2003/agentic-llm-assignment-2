@@ -1,10 +1,13 @@
 """Checks for paired experiment settings and honest result aggregation."""
 
 import csv
+import ast
 import json
 from pathlib import Path
 import sys
 import zipfile
+from types import SimpleNamespace
+from unittest.mock import Mock
 
 import pytest
 
@@ -22,6 +25,23 @@ def test_all_agents_share_the_same_settings(tmp_path):
     assert "envs.env_kwargs.seed=42" in commands[0]
     assert "eval.num_episodes.crafter=1" in commands[0]
     assert len(SEEDS) == len(set(SEEDS)) == 5
+
+
+def test_exhausted_cloud_retries_stop_evaluation():
+    # Exercise the real method's error handling without importing optional provider SDKs.
+    source = Path(__file__).resolve().parents[1] / "client.py"
+    module = ast.parse(source.read_text(encoding="utf-8"))
+    wrapper = next(node for node in module.body if isinstance(node, ast.ClassDef)
+                   and node.name == "GoogleGenerativeAIWrapper")
+    generate = next(node for node in wrapper.body if isinstance(node, ast.FunctionDef) and node.name == "generate")
+    namespace = {"logger": Mock(), "LLMResponse": lambda **fields: SimpleNamespace(**fields)}
+    exec(compile(ast.Module(body=[generate], type_ignores=[]), str(source), "exec"), namespace)
+    fake = SimpleNamespace(_initialize_client=Mock(), convert_messages=Mock(return_value=[]),
+                           execute_with_retries=Mock(side_effect=RuntimeError("quota exhausted")),
+                           model_id="test-cloud-model", max_retries=5)
+    with pytest.raises(RuntimeError, match="Cloud inference failed") as error:
+        namespace["generate"](fake, [])
+    assert str(error.value.__cause__) == "quota exhausted"
 
 
 def write_episode(root, run, seed, progression):
