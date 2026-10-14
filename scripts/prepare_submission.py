@@ -127,7 +127,7 @@ def main():
                   "check trajectories and all five seeds; remove the DRAFT label only after review. "
                   "Raw JSON/CSV and run.json record prompts, actions, commands, dependency versions, and commit.\n")
         (stage / "README.md").write_text(readme, encoding="utf-8")
-        sources = [ROOT / name for name in ("eval.py", "setup.py", "pyproject.toml", "LICENSE", "kaggle_qwen_baseline.ipynb")]
+        sources = [ROOT / name for name in ("eval.py", "setup.py", "pyproject.toml", "LICENSE", "ASSIGNMENT.md", "kaggle_qwen_baseline.ipynb")]
         sources += [p for p in (ROOT / "balrog").rglob("*") if p.is_file()
                     and not any(part in ("__pycache__", "tests") for part in p.relative_to(ROOT).parts)]
         sources += [ROOT / "scripts" / name for name in ("run_assignment.py", "prepare_submission.py")]

@@ -2,6 +2,52 @@
 
 This repository is based on BALROG commit `b7afe79e3e4265811cfa985ed7c95c4d1a11e3f5`.
 
+## Required reading and its role
+
+The assignment's section 2.1 requires Chapters 6-9 and says the exercises are
+based on Chapter 10. Use the assignment PDF for assessed requirements; the book
+provides the theory and additional examples, not a requirement to implement every
+algorithm or framework it discusses.
+
+Reference: Max van Duijn, Michiel van der Meer, Aske Plaat, Niki van Stein,
+*Agentic Large Language Models*, arXiv:2610.13455v1, 9 October 2026.
+[Free draft](https://arxiv.org/pdf/2610.13455v1).
+Page numbers below refer to this draft; other versions may differ.
+
+| Reading | Use in our assignment |
+| --- | --- |
+| Chapter 6 (pp. 125-144), especially 6.2.4.2 and 6.3.1 | Explain multistep reasoning, self-reflection, prompt sensitivity and brittleness. |
+| Chapter 7 (pp. 151-173) | Explain observation/action interaction and planning; our experiment uses text observations, not a vision model. |
+| Chapter 8 (pp. 181-186), especially 8.3.2-8.4 | Discuss feedback, instability and why a critic can reinforce the actor's mistakes. |
+| Chapter 9 (pp. 193-205), especially 9.2.1.4 and 9.3 | Explain the external harness, observation/action history and stored plan; model weights stay fixed. |
+| Chapter 10.1-10.2.4 (pp. 211-216) | Exercise 1: benchmark/model choices, naive evaluation, computational cost and trajectory inspection. |
+| Chapter 10.2.5 (pp. 216-218) | Exercise 2: explain our additions to the provided planning agent. |
+| Chapter 10.3 (pp. 216-218) | All exercises: progression matrices, repeated runs, variation and checking raw trajectories. |
+| Chapter 10.4 (pp. 218-220) | Exercise 3: actor/critic prompts, feedback, memory and failure loops. |
+
+Our `stall_reflection` agent is a small, repetition-triggered self-critique method.
+It is not a full reproduction of Reflexion: it has no separate evaluator score
+or long-term reflection memory across episodes. The assignment permits an
+original self-reflection idea; explain this distinction when citing the book.
+ReAct, Reflexion and memory compression are examples to understand, not extra
+implementations added to our chosen study.
+
+Also read the BALROG paper (Paglieri et al., arXiv:2411.13543) and the repository's
+Evaluation Guide, Agent Development tutorial and Few Shot Learning guide, as
+requested by the assignment. Reading the few-shot guide does not itself require
+adding a few-shot experiment to our research question.
+
+## Completion checklist
+
+- [ ] Group preparation: Chapters 6-9, Chapter 10 case study, BALROG paper and guides.
+- [x] Qwen: 45 episodes covering three agents, three benchmarks and seeds 42-46.
+- [x] Qwen progression/variation tables and draft packages recovered and validated.
+- [ ] Cloud-model comparison under the recorded study settings.
+- [ ] Inspect trajectories and explain agent behavior, not just scores.
+- [ ] Link the written answers to the book sections above; cite the book and paper.
+- [ ] Discuss limits: 50-step cap, few tasks/seeds, fixed temperature, heuristic trigger and token cost.
+- [ ] Finish all three REPORT.md files and review the final three submission ZIPs.
+
 ## Research question
 
 Does adding a critic after repeated actions improve progression over a naive agent and a planning agent, and how much extra token usage does it require?
