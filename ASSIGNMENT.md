@@ -107,8 +107,10 @@ For a free cloud comparison, Google currently lists free standard input/output
 for `gemini-3.5-flash-lite` (check your own project's availability and quota).
 Create a key in [Google AI Studio](https://aistudio.google.com/api-keys) under
 a free-tier project. Do not enable paid billing for this study.
-In Kaggle, add it under Add-ons > Secrets as `GEMINI_API_KEY` and grant the
-notebook access. Use these first-cell values:
+The Kaggle notebook supports five project keys. Add them under Add-ons > Secrets
+as `GEMINI_API_KEY_1`, `GEMINI_API_KEY_2`, `GEMINI_API_KEY_3`, `GEMINI_API_KEY_4`,
+and `GEMINI_API_KEY_5`, and grant the notebook access to all five.
+Use these first-cell values:
 
 ```python
 CLIENT = "gemini"
@@ -124,7 +126,19 @@ The project's observed Gemini limit is 15 requests/minute. The client spaces
 requests five seconds apart, shared by actor/critic instances in the single
 evaluation process. Keep `eval.num_workers=1` and run only one notebook against
 the project at a time. Daily request or token limits can still stop a run.
-The cloud comparison is an experiment; no cloud results exist yet.
+The runner assigns unfinished agent/seed runs sequentially across these five
+secret slots. It passes only the selected key to the evaluation process and
+records the slot number in `run.json`, never the key. It stops on API/quota
+failure without switching keys during an episode. Each project's actual quotas
+still apply; five keys do not guarantee five independent allowances or completion.
+For a single key outside Kaggle, the existing `GEMINI_API_KEY` setup still works.
+The optional `GEMINI_API_KEYS` environment variable accepts a JSON list for the
+same assignment across project keys; do not put this list in source files.
+
+Six complete Gemini agent/seed runs have been recovered: naive seeds 42-46 and
+custom seed 42. Before a fresh Kaggle session, restore their `assignment_results`
+folder under `/kaggle/working`; otherwise the runner cannot skip them.
+The rest of the cloud comparison remains pending.
 Pricing/availability source: https://ai.google.dev/gemini-api/docs/pricing .
 Account-specific quota source: https://ai.google.dev/gemini-api/docs/rate-limits .
 

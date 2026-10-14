@@ -15,6 +15,7 @@ sys.path.insert(0, str(Path(__file__).resolve().parents[2] / "scripts"))
 from prepare_submission import collect_rows, performance_table
 from prepare_submission import main as prepare_submission
 from run_assignment import AGENTS, SEEDS, evaluation_command
+import run_assignment
 
 
 def test_all_agents_share_the_same_settings(tmp_path):
@@ -25,6 +26,54 @@ def test_all_agents_share_the_same_settings(tmp_path):
     assert "envs.env_kwargs.seed=42" in commands[0]
     assert "eval.num_episodes.crafter=1" in commands[0]
     assert len(SEEDS) == len(set(SEEDS)) == 5
+
+
+@pytest.mark.parametrize("returncode", [0, 1])
+def test_gemini_keys_are_assigned_only_to_unfinished_runs(tmp_path, monkeypatch, capsys, returncode):
+    keys = [f"private-key-{i}" for i in range(5)]
+    monkeypatch.setenv("GEMINI_API_KEYS", json.dumps(keys))
+    monkeypatch.setenv("GOOGLE_API_KEY", "other-project-key")
+    monkeypatch.delenv("GEMINI_API_KEY", raising=False)
+    monkeypatch.setattr(run_assignment, "SEEDS", (42, 43, 44))
+    monkeypatch.setattr(run_assignment.subprocess, "check_output", lambda *args, **kwargs: "commit\n")
+    monkeypatch.setattr(run_assignment.importlib.metadata, "distributions", lambda: [])
+    monkeypatch.setattr(sys, "argv", ["run_assignment", "--client", "gemini", "--model", "model", "--output", str(tmp_path)])
+    completed = tmp_path / "gemini" / "model" / "naive" / "seed-42" / "previous"
+    completed.mkdir(parents=True)
+    (completed / "summary.json").write_text("{}")
+    calls = []
+
+    def evaluate(command, **kwargs):
+        environment = kwargs["env"]
+        assert "GEMINI_API_KEYS" not in environment
+        assert "GOOGLE_API_KEY" not in environment
+        calls.append(environment["GEMINI_API_KEY"])
+        return SimpleNamespace(returncode=returncode)
+
+    monkeypatch.setattr(run_assignment.subprocess, "run", evaluate)
+    if returncode:
+        with pytest.raises(SystemExit) as error:
+            run_assignment.main()
+        assert error.value.code == returncode
+        assert calls == keys[:1]  # Failed evaluations stop without switching projects.
+    else:
+        run_assignment.main()
+        assert calls == keys + keys[:3]
+    manifests = [json.loads(path.read_text()) for path in tmp_path.rglob("run.json")]
+    assert sorted(manifest["gemini_key_slot"] for manifest in manifests) == sorted(keys.index(key) + 1 for key in calls)
+    assert all(key not in json.dumps(manifests) for key in keys)
+    output = capsys.readouterr().out
+    assert all(key not in output for key in keys)
+    assert (completed / "summary.json").read_text() == "{}"
+
+
+@pytest.mark.parametrize("value", ["not-json", "{}", "[]", '[" "]', '[123]', '["same", "same"]'])
+def test_invalid_gemini_key_lists_fail_before_evaluation(monkeypatch, value):
+    monkeypatch.setenv("GEMINI_API_KEYS", value)
+    monkeypatch.setattr(sys, "argv", ["run_assignment", "--client", "gemini", "--model", "model"])
+    with pytest.raises(SystemExit) as error:
+        run_assignment.main()
+    assert error.value.code == 2
 
 
 def cloud_generate_method():

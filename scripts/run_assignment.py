@@ -38,7 +38,17 @@ def main():
     parser.add_argument("--output", type=Path, default=ROOT / "assignment_results")
     args = parser.parse_args()
     key_name = {"gemini": "GEMINI_API_KEY", "openai": "OPENAI_API_KEY", "claude": "ANTHROPIC_API_KEY"}.get(args.client)
-    if key_name and not os.environ.get(key_name):
+    keys = []
+    if args.client == "gemini" and os.environ.get("GEMINI_API_KEYS"):
+        try:
+            keys = json.loads(os.environ["GEMINI_API_KEYS"])
+        except json.JSONDecodeError:
+            parser.error("GEMINI_API_KEYS must be a JSON list of keys.")
+        if not isinstance(keys, list) or not keys or any(not isinstance(key, str) or not key.strip() for key in keys):
+            parser.error("GEMINI_API_KEYS must be a nonempty JSON list of nonempty strings.")
+        if len(set(keys)) != len(keys):
+            parser.error("GEMINI_API_KEYS contains duplicate keys; each slot must be distinct.")
+    elif key_name and not os.environ.get(key_name):
         parser.error(f"Set {key_name} in the environment; never put the key in the code.")
     model_dir = args.output.resolve() / args.client / args.model.replace("/", "_")
     if (ROOT / ".git").exists():
@@ -46,6 +56,7 @@ def main():
     else:
         commit = (ROOT / "SOURCE_COMMIT").read_text(encoding="utf-8").strip()
     versions = {dist.metadata["Name"]: dist.version for dist in importlib.metadata.distributions()}
+    pending_index = 0
     for agent in AGENTS:
         for seed in SEEDS:
             destination = model_dir / agent / f"seed-{seed}"
@@ -56,10 +67,20 @@ def main():
             destination.mkdir(parents=True, exist_ok=True)
             command = evaluation_command(args.model, args.client, args.base_url, agent, seed, destination)
             manifest = {"command": command, "commit": commit, "python": sys.version, "packages": versions}
+            environment = os.environ.copy()
+            environment.pop("GEMINI_API_KEYS", None)
+            if keys:
+                slot = pending_index % len(keys)
+                environment["GEMINI_API_KEY"] = keys[slot]
+                # The Google SDK otherwise gives GOOGLE_API_KEY precedence over this key.
+                environment.pop("GOOGLE_API_KEY", None)
+                manifest["gemini_key_slot"] = slot + 1
+                print(f"Gemini secret slot: {slot + 1}/{len(keys)}", flush=True)
+                pending_index += 1
             (destination / "run.json").write_text(json.dumps(manifest, indent=2), encoding="utf-8")
             print(f"Running {args.model}: {agent}, seed {seed}", flush=True)
             with (destination / "console.log").open("w", encoding="utf-8") as log:
-                result = subprocess.run(command, cwd=ROOT, stdout=log, stderr=subprocess.STDOUT)
+                result = subprocess.run(command, cwd=ROOT, stdout=log, stderr=subprocess.STDOUT, env=environment)
             if result.returncode:
                 print((destination / "console.log").read_text(encoding="utf-8")[-6000:], flush=True)
                 raise SystemExit(result.returncode)
