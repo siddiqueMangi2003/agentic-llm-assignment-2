@@ -103,6 +103,27 @@ python scripts/run_assignment.py --client gemini --model YOUR_MODEL_ID
 python scripts/prepare_submission.py
 ```
 
+For a free cloud comparison, Google currently lists free standard input/output
+for `gemini-2.5-flash-lite` (check your own project's availability and quota).
+Create a key in [Google AI Studio](https://aistudio.google.com/api-keys) under
+a free-tier project. Do not enable paid billing for this study.
+In Kaggle, add it under Add-ons > Secrets as `GEMINI_API_KEY` and grant the
+notebook access. Use these first-cell values:
+
+```python
+CLIENT = "gemini"
+MODEL = "gemini-2.5-flash-lite"
+```
+
+Keep Internet on and turn the accelerator off: the provider does inference.
+Check the actual model limits in AI Studio before starting. An episode makes
+many API calls, and daily free quotas may require spreading the study across
+days; a free allowance is not a promise that all 45 episodes fit in one session.
+Do not count exhausted-quota or API-error runs as model reasoning failures.
+The cloud comparison is an experiment; no cloud results exist yet.
+Pricing/availability source: https://ai.google.dev/gemini-api/docs/pricing .
+Account-specific quota source: https://ai.google.dev/gemini-api/docs/rate-limits .
+
 Set the API key in the environment before the cloud command. For a local Qwen
 server, use `--client vllm --model Qwen/Qwen2.5-7B-Instruct` instead.
 Download each person's result archive, combine their `assignment_results`
@@ -114,6 +135,12 @@ rerun as part of the controlled study.
 ## Remaining written work
 
 The ZIPs remain DRAFT until both models and all planned runs have been reviewed.
+Draft numbered answers for the completed Qwen study are in `reports/Ass2-1.md`,
+`reports/Ass2-2.md` and `reports/Ass2-3.md`. A fresh package uses the matching
+file as REPORT.md. Complete the cloud sections and have both group members
+review the interpretation. The assignment requires answers but does not specify
+a separate PDF report; these short Markdown reports are our packaging choice.
+If Brightspace provides additional report-format instructions, follow those.
 Fill each `REPORT.md` with the assignment's written answers and trajectory
 evidence; the packaging script preserves your edits. Exercise 1 covers model
 and benchmark choices, failures, reasoning, and ideas. Exercise 2 covers the

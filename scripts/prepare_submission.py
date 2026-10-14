@@ -95,8 +95,11 @@ def main():
         write_csv(stage / "performance.csv", selected_table)
         write_csv(stage / "matrix.csv", [row for row in matrix_rows if row["agent"] in selected])
         report = stage / "REPORT.md"
+        source_report = ROOT / "reports" / f"Ass2-{exercise}.md"
         # Preserve the group's written answers when regenerating tables.
-        if not report.exists():
+        if not report.exists() and source_report.exists():
+            report.write_text(source_report.read_text(encoding="utf-8"), encoding="utf-8")
+        elif not report.exists():
             questions = {
                 1: "Model and benchmark choices; trajectory failures; reasoning strengths and weaknesses; ideas for improvement.",
                 2: "Two-sentence agent idea; generic or benchmark-specific scope; comparison with naive; brittleness; harness design; what to improve.",
@@ -131,6 +134,8 @@ def main():
         sources += [p for p in (ROOT / "balrog").rglob("*") if p.is_file()
                     and not any(part in ("__pycache__", "tests") for part in p.relative_to(ROOT).parts)]
         sources += [ROOT / "scripts" / name for name in ("run_assignment.py", "prepare_submission.py")]
+        if source_report.exists():
+            sources.append(source_report)
         with zipfile.ZipFile(output / f"Ass2-{exercise}.zip", "w", zipfile.ZIP_DEFLATED) as archive:
             for source in sources:
                 archive.write(source, source.relative_to(ROOT))
