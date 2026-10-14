@@ -251,6 +251,9 @@ class OpenAIWrapper(LLMClientWrapper):
 class GoogleGenerativeAIWrapper(LLMClientWrapper):
     """Wrapper for interacting with Google's Generative AI API."""
 
+    # shortcut: pacing is per process; coordinate a shared limiter before using parallel workers.
+    _last_request_at = 0.0
+
     def __init__(self, client_config):
         """Initialize the GoogleGenerativeAIWrapper with the given configuration.
 
@@ -451,6 +454,9 @@ class GoogleGenerativeAIWrapper(LLMClientWrapper):
         converted_messages = self.convert_messages(messages)
 
         def api_call():
+            # Five-second spacing stays below this project's 15 requests/minute, including critic calls.
+            time.sleep(max(0.0, 5.0 - (time.monotonic() - GoogleGenerativeAIWrapper._last_request_at)))
+            GoogleGenerativeAIWrapper._last_request_at = time.monotonic()
             response = self.client.models.generate_content(
                 model=self.model_id,
                 contents=converted_messages,

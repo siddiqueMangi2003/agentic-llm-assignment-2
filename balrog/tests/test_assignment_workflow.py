@@ -27,7 +27,7 @@ def test_all_agents_share_the_same_settings(tmp_path):
     assert len(SEEDS) == len(set(SEEDS)) == 5
 
 
-def test_exhausted_cloud_retries_stop_evaluation():
+def cloud_generate_method():
     # Exercise the real method's error handling without importing optional provider SDKs.
     source = Path(__file__).resolve().parents[1] / "client.py"
     module = ast.parse(source.read_text(encoding="utf-8"))
@@ -36,12 +36,37 @@ def test_exhausted_cloud_retries_stop_evaluation():
     generate = next(node for node in wrapper.body if isinstance(node, ast.FunctionDef) and node.name == "generate")
     namespace = {"logger": Mock(), "LLMResponse": lambda **fields: SimpleNamespace(**fields)}
     exec(compile(ast.Module(body=[generate], type_ignores=[]), str(source), "exec"), namespace)
+    return namespace
+
+
+def test_exhausted_cloud_retries_stop_evaluation():
+    namespace = cloud_generate_method()
     fake = SimpleNamespace(_initialize_client=Mock(), convert_messages=Mock(return_value=[]),
                            execute_with_retries=Mock(side_effect=RuntimeError("quota exhausted")),
                            model_id="test-cloud-model", max_retries=5)
     with pytest.raises(RuntimeError, match="Cloud inference failed") as error:
         namespace["generate"](fake, [])
     assert str(error.value.__cause__) == "quota exhausted"
+
+
+def test_gemini_pacing_is_shared_by_actor_and_critic_clients():
+    namespace = cloud_generate_method()
+    now, requests = [100.0], []
+    clock = Mock()
+    clock.monotonic.side_effect = lambda: now[0]
+    clock.sleep.side_effect = lambda seconds: now.__setitem__(0, now[0] + seconds)
+    namespace.update(time=clock, GoogleGenerativeAIWrapper=SimpleNamespace(_last_request_at=0.0))
+    response = SimpleNamespace(usage_metadata=None, candidates=[SimpleNamespace(finish_reason="STOP")])
+    provider = Mock()
+    provider.models.generate_content.side_effect = lambda **kwargs: requests.append(now[0]) or response
+    options = dict(_initialize_client=Mock(), convert_messages=Mock(return_value=[]),
+                   execute_with_retries=lambda call: call(), client=provider, generation_config={},
+                   extract_completion=lambda response: "north", extract_reasoning=lambda response: None,
+                   _extract_reasoning_token_count=lambda response: 0, model_id="test-model", max_retries=5)
+    actor, critic = SimpleNamespace(**options), SimpleNamespace(**options)
+    for client in (actor, critic, actor):
+        namespace["generate"](client, [])
+    assert requests == [100.0, 105.0, 110.0]
 
 
 def write_episode(root, run, seed, progression):

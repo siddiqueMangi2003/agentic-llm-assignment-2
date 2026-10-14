@@ -120,6 +120,10 @@ Check the actual model limits in AI Studio before starting. An episode makes
 many API calls, and daily free quotas may require spreading the study across
 days; a free allowance is not a promise that all 45 episodes fit in one session.
 Do not count exhausted-quota or API-error runs as model reasoning failures.
+The project's observed Gemini limit is 15 requests/minute. The client spaces
+requests five seconds apart, shared by actor/critic instances in the single
+evaluation process. Keep `eval.num_workers=1` and run only one notebook against
+the project at a time. Daily request or token limits can still stop a run.
 The cloud comparison is an experiment; no cloud results exist yet.
 Pricing/availability source: https://ai.google.dev/gemini-api/docs/pricing .
 Account-specific quota source: https://ai.google.dev/gemini-api/docs/rate-limits .
