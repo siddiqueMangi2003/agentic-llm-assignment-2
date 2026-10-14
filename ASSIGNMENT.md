@@ -104,7 +104,7 @@ python scripts/prepare_submission.py
 ```
 
 For a free cloud comparison, Google currently lists free standard input/output
-for `gemini-2.5-flash-lite` (check your own project's availability and quota).
+for `gemini-3.5-flash-lite` (check your own project's availability and quota).
 Create a key in [Google AI Studio](https://aistudio.google.com/api-keys) under
 a free-tier project. Do not enable paid billing for this study.
 In Kaggle, add it under Add-ons > Secrets as `GEMINI_API_KEY` and grant the
@@ -112,7 +112,7 @@ notebook access. Use these first-cell values:
 
 ```python
 CLIENT = "gemini"
-MODEL = "gemini-2.5-flash-lite"
+MODEL = "gemini-3.5-flash-lite"
 ```
 
 Keep Internet on and turn the accelerator off: the provider does inference.
