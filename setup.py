@@ -19,6 +19,7 @@ setup(
         "website": "https://www.balrogai.com/",
     },
     install_requires=[
+        "setuptools<81",  # balrog-nle still imports pkg_resources.
         "openai",
         "anthropic",
         "google-genai",

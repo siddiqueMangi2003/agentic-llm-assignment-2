@@ -164,6 +164,8 @@ cython_debug/
 /models
 /outputs
 /results
+/assignment_results
+/submission
 /slurm-*.out
 /vllm-*.log
 /tw_games
