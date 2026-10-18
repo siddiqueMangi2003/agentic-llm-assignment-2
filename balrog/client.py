@@ -86,9 +86,16 @@ class LLMClientWrapper:
             try:
                 return func(*args, **kwargs)
             except Exception as e:
+                if self.client_name.lower() == "groq" and getattr(e, "status_code", None) == 429:
+                    if any(limit in str(e).lower() for limit in ("tokens per day", "requests per day")):
+                        raise RuntimeError("Groq daily quota exhausted; completed runs are preserved.") from e
                 retries += 1
                 logger.error(f"Retryable error during {func.__name__}: {e}. Retry {retries}/{self.max_retries}")
                 sleep_time = self.delay * (2 ** (retries - 1))  # Exponential backoff
+                if self.client_name.lower() == "groq":
+                    retry_after = getattr(getattr(e, "response", None), "headers", {}).get("retry-after")
+                    if retry_after:
+                        sleep_time = max(sleep_time, float(retry_after))
                 time.sleep(sleep_time)
         raise Exception(f"Failed to execute {func.__name__} after {self.max_retries} retries.")
 
@@ -165,7 +172,13 @@ class OpenAIWrapper(LLMClientWrapper):
         if not self._initialized:
             if self.client_name.lower() == "vllm":
                 self.client = OpenAI(api_key="EMPTY", base_url=self.base_url)
-            elif self.client_name.lower() == "nvidia" or self.client_name.lower() == "xai":
+            elif self.client_name.lower() == "groq":
+                self.client = OpenAI(api_key=os.environ["GROQ_API_KEY"],
+                                     base_url="https://api.groq.com/openai/v1", max_retries=0)
+            elif self.client_name.lower() == "nvidia":
+                self.client = OpenAI(api_key=os.environ["NVIDIA_API_KEY"],
+                                     base_url=self.base_url, max_retries=0)
+            elif self.client_name.lower() == "xai":
                 if not self.base_url or not self.base_url.strip():
                     raise ValueError("base_url must be provided when using NVIDIA or XAI client")
                 self.client = OpenAI(base_url=self.base_url)
@@ -218,6 +231,13 @@ class OpenAIWrapper(LLMClientWrapper):
             if temperature is not None:
                 api_kwargs["temperature"] = temperature
 
+            if self.client_name.lower() == "groq":
+                api_kwargs["max_completion_tokens"] = api_kwargs.pop("max_tokens")
+                api_kwargs["reasoning_effort"] = "low"
+            elif self.client_name.lower() == "nvidia":
+                # Keep the answer budget for the action; planning and critique belong to the agents.
+                api_kwargs["extra_body"] = {"chat_template_kwargs": {"enable_thinking": False}}
+
             response = self.client.chat.completions.create(**api_kwargs)
 
             if response is None:
@@ -244,7 +264,7 @@ class OpenAIWrapper(LLMClientWrapper):
             stop_reason=response.choices[0].finish_reason,
             input_tokens=response.usage.prompt_tokens,
             output_tokens=response.usage.completion_tokens,
-            reasoning=None,
+            reasoning=getattr(response.choices[0].message, "reasoning", None) if self.client_name.lower() == "groq" else None,
         )
 
 
@@ -794,7 +814,7 @@ def create_llm_client(client_config):
 
     def client_factory():
         client_name_lower = client_config.client_name.lower()
-        if "openai" in client_name_lower or "vllm" in client_name_lower or "nvidia" in client_name_lower or "xai" in client_name_lower:
+        if "openai" in client_name_lower or "vllm" in client_name_lower or "nvidia" in client_name_lower or "xai" in client_name_lower or client_name_lower == "groq":
             # NVIDIA and XAI use OpenAI-compatible API, so we use the OpenAI wrapper
             return OpenAIWrapper(client_config)
         elif "gemini" in client_name_lower:

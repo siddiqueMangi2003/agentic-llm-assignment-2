@@ -33,11 +33,15 @@ def evaluation_command(model, client, base_url, agent, seed, output_dir):
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--model", required=True)
-    parser.add_argument("--client", choices=("vllm", "gemini", "openai", "claude"), default="vllm")
-    parser.add_argument("--base-url", default="http://127.0.0.1:18080/v1")
+    parser.add_argument("--client", choices=("vllm", "gemini", "openai", "claude", "groq", "nvidia"), default="vllm")
+    parser.add_argument("--base-url")
     parser.add_argument("--output", type=Path, default=ROOT / "assignment_results")
     args = parser.parse_args()
-    key_name = {"gemini": "GEMINI_API_KEY", "openai": "OPENAI_API_KEY", "claude": "ANTHROPIC_API_KEY"}.get(args.client)
+    args.base_url = args.base_url or {
+        "groq": "https://api.groq.com/openai/v1",
+        "nvidia": "https://integrate.api.nvidia.com/v1",
+    }.get(args.client, "http://127.0.0.1:18080/v1")
+    key_name = {"gemini": "GEMINI_API_KEY", "openai": "OPENAI_API_KEY", "claude": "ANTHROPIC_API_KEY", "groq": "GROQ_API_KEY", "nvidia": "NVIDIA_API_KEY"}.get(args.client)
     keys = []
     if args.client == "gemini" and os.environ.get("GEMINI_API_KEYS"):
         try:
@@ -67,6 +71,10 @@ def main():
             destination.mkdir(parents=True, exist_ok=True)
             command = evaluation_command(args.model, args.client, args.base_url, agent, seed, destination)
             manifest = {"command": command, "commit": commit, "python": sys.version, "packages": versions}
+            if args.client == "groq":
+                manifest["reasoning_effort"] = "low"
+            elif args.client == "nvidia":
+                manifest["enable_thinking"] = False
             environment = os.environ.copy()
             environment.pop("GEMINI_API_KEYS", None)
             if keys:

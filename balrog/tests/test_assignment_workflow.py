@@ -3,6 +3,7 @@
 import csv
 import ast
 import json
+import os
 from pathlib import Path
 import sys
 import zipfile
@@ -96,6 +97,67 @@ def test_exhausted_cloud_retries_stop_evaluation():
     with pytest.raises(RuntimeError, match="Cloud inference failed") as error:
         namespace["generate"](fake, [])
     assert str(error.value.__cause__) == "quota exhausted"
+
+
+def test_nvidia_uses_its_own_key_and_preserves_the_answer_budget(monkeypatch):
+    source = Path(__file__).resolve().parents[1] / "client.py"
+    module = ast.parse(source.read_text(encoding="utf-8"))
+    wrappers = [node for node in module.body if isinstance(node, ast.ClassDef)
+                and node.name in ("LLMClientWrapper", "OpenAIWrapper")]
+    response = SimpleNamespace(choices=[SimpleNamespace(
+        message=SimpleNamespace(content="north"), finish_reason="stop")],
+        usage=SimpleNamespace(prompt_tokens=20, completion_tokens=1))
+    sdk = Mock()
+    sdk.return_value.chat.completions.create.return_value = response
+    namespace = {"OpenAI": sdk, "os": os, "logger": Mock(), "time": Mock(),
+                 "LLMResponse": lambda **fields: SimpleNamespace(**fields)}
+    exec(compile(ast.Module(body=wrappers, type_ignores=[]), str(source), "exec"), namespace)
+    monkeypatch.setenv("NVIDIA_API_KEY", "test-nvidia-key")
+    monkeypatch.setenv("OPENAI_API_KEY", "wrong-provider-key")
+    client = namespace["OpenAIWrapper"](SimpleNamespace(
+        client_name="nvidia", model_id="nvidia/nemotron-3.5-lightning-30b-a3b",
+        base_url="https://integrate.api.nvidia.com/v1", timeout=60,
+        generate_kwargs={"temperature": 0, "max_tokens": 1024},
+        max_retries=1, delay=0, alternate_roles=False))
+    result = client.generate([SimpleNamespace(role="user", content="Choose an action", attachment=None)])
+    sdk.assert_called_once_with(api_key="test-nvidia-key",
+                                base_url="https://integrate.api.nvidia.com/v1", max_retries=0)
+    payload = sdk.return_value.chat.completions.create.call_args.kwargs
+    assert payload["temperature"] == 0 and payload["max_tokens"] == 1024
+    assert payload["extra_body"] == {"chat_template_kwargs": {"enable_thinking": False}}
+    assert result.completion == "north" and result.output_tokens == 1
+    sdk.return_value.chat.completions.create.side_effect = RuntimeError("quota exhausted")
+    with pytest.raises(Exception, match="Failed to execute"):
+        client.generate([])
+
+
+def test_nvidia_runner_keeps_completed_results_and_records_settings(tmp_path, monkeypatch):
+    monkeypatch.setenv("NVIDIA_API_KEY", "test-nvidia-key")
+    monkeypatch.setattr(run_assignment, "SEEDS", (42, 43))
+    monkeypatch.setattr(run_assignment.subprocess, "check_output", lambda *args, **kwargs: "commit\n")
+    monkeypatch.setattr(run_assignment.importlib.metadata, "distributions", lambda: [])
+    monkeypatch.setattr(sys, "argv", ["run_assignment", "--client", "nvidia", "--model", "model", "--output", str(tmp_path)])
+    completed = tmp_path / "nvidia" / "model" / "naive" / "seed-42" / "previous"
+    completed.mkdir(parents=True)
+    (completed / "summary.json").write_text("{}")
+    evaluate = Mock(return_value=SimpleNamespace(returncode=0))
+    monkeypatch.setattr(run_assignment.subprocess, "run", evaluate)
+    run_assignment.main()
+    assert evaluate.call_count == 5
+    for call in evaluate.call_args_list:
+        assert "client.base_url=https://integrate.api.nvidia.com/v1" in call.args[0]
+    manifests = [json.loads(path.read_text()) for path in tmp_path.rglob("run.json")]
+    assert all(manifest["enable_thinking"] is False for manifest in manifests)
+    assert "test-nvidia-key" not in json.dumps(manifests)
+    assert (completed / "summary.json").read_text() == "{}"
+
+
+def test_nvidia_requires_its_key_before_running(monkeypatch):
+    monkeypatch.delenv("NVIDIA_API_KEY", raising=False)
+    monkeypatch.setattr(sys, "argv", ["run_assignment", "--client", "nvidia", "--model", "model"])
+    with pytest.raises(SystemExit) as error:
+        run_assignment.main()
+    assert error.value.code == 2
 
 
 def test_gemini_pacing_is_shared_by_actor_and_critic_clients():

@@ -66,9 +66,11 @@ The instructor-provided `BALROG_sweep_final.log` is a reference for choosing exp
 
 ## Combined experiment
 
-Open `kaggle_qwen_baseline.ipynb` on Kaggle with Internet enabled and GPU T4 x2.
-The existing `LLM-assignment` notebook is updated with this same code. Qwen starts once;
-the runner evaluates all three agents on seeds 42, 43, 44, 45, 46. Each seed runs
+Open `kaggle_qwen_baseline.ipynb` on Kaggle with Internet enabled. It now defaults
+to NVIDIA's hosted Nemotron API, so select CPU and enable the `NVIDIA_API_KEY`
+secret. The existing `LLM-assignment` notebook uses this configuration too.
+For Qwen, select GPU T4 x2 and set `CLIENT = "vllm"` and its model ID.
+The runner evaluates all three agents on seeds 42, 43, 44, 45, 46. Each seed runs
 one episode in each of the three environments: 45 episodes total for each model.
 Completed evaluations are skipped when resuming from the same result directory.
 
@@ -80,13 +82,26 @@ Five different seeds measure variation across scenarios. They do not establish
 repeatability of an identical scenario; discuss this distinction in the report.
 
 The notebook writes raw results under `/kaggle/working/assignment_results` and
-tables plus three **draft** ZIPs under `/kaggle/working/submission`.
+creates `/kaggle/working/assignment-results.zip`. It does not generate submission packages.
+The separate `scripts/prepare_submission.py` helper can generate draft tables:
 `matrix.csv` gives model × benchmark comparisons for each agent;
 `performance.csv` adds sample SD, episode count, steps, invalid actions, critic
 calls, and input/output tokens. `episodes.csv` points to the trajectory evidence.
 Do not treat a missing row, or a single episode with zero SD, as a reliable result.
 
 ## Cloud model (person 2)
+
+Our third model is `nvidia/nemotron-3.5-lightning-30b-a3b`, using `CLIENT = "nvidia"`
+and the Kaggle secret `NVIDIA_API_KEY`. Its endpoint is
+`https://integrate.api.nvidia.com/v1`; no GPU or local model download is needed.
+The existing OpenAI SDK sends the requests. Built-in thinking is disabled for all
+three agents to retain the 1,024-token answer budget; explicit planning and critic
+prompts still run. Each run manifest records `enable_thinking: false`. Document this
+choice in the report. Free API limits still apply; a one-session finish is not guaranteed.
+
+```bash
+python scripts/run_assignment.py --client nvidia --model nvidia/nemotron-3.5-lightning-30b-a3b
+```
 
 In the same notebook set `CLIENT = "gemini"` (or `openai` or `claude`), and set
 `MODEL` to the exact model ID available in your free/student account. Add the
