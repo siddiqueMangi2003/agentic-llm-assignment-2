@@ -203,12 +203,13 @@ def setup_environment(
         organization (str, optional): Organization name for OpenAI. Defaults to None.
         original_cwd (str, optional): Original working directory. Defaults to "".
     """
-    secrets = load_secrets(os.path.join(original_cwd, "SECRETS"))
-    if secrets[gemini_tag]:
+    secrets_path = os.path.join(original_cwd, "SECRETS")
+    secrets = load_secrets(secrets_path) if os.path.isfile(secrets_path) else {}
+    if secrets.get(gemini_tag):
         os.environ["GEMINI_API_KEY"] = secrets[gemini_tag]
-    if secrets[anthropic_tag]:
+    if secrets.get(anthropic_tag):
         os.environ["ANTHROPIC_API_KEY"] = secrets[anthropic_tag]
-    if secrets[openai_tag]:
+    if secrets.get(openai_tag):
         os.environ["OPENAI_API_KEY"] = secrets[openai_tag]
     if organization is not None:
         openai.organization = secrets[organization]

@@ -1,117 +1,86 @@
-<p align="center">
-  <a href="https://balrogai.com">
-    <img src="docs/imgs/balrog_banner.png" width="50%" alt="BALROG Agent" />
-  </a>
-</p>
+# Assignment 2: reasoning and reflection
 
-> Leiden Agentic LLM Assignment 2: see [ASSIGNMENT.md](ASSIGNMENT.md) for the research question, experiment plan, and REL commands.
+This fresh study uses BALROG for three exercises:
+1. `naive`: baseline action selection.
+2. `custom`: the supplied planning agent, extended to replan after two repeated actions.
+3. `stall_reflection`: the custom agent plus a second call to the same model to critique and revise a candidate when actions repeat.
 
----
+The repetition rule is a simple signal of possible stagnation. It can trigger during useful repeated actions and can miss alternating loops. It is not a full implementation of Reflexion.
 
-# BALROG: Benchmarking Agentic LLM and VLM Reasoning On Games
+## Fixed study settings
 
-BALROG is a novel benchmark evaluating agentic LLM and VLM capabilities on long-horizon interactive tasks using reinforcement learning environments. Check out how current models fare on our [leaderboard](https://balrogai.com). You can read more about BALROG in our [paper](https://arxiv.org/abs/2411.13543).
+| Setting | Value |
+| --- | --- |
+| Models | Qwen/Qwen2.5-7B-Instruct; gemini-3.5-flash-lite; nvidia/nemotron-3.5-lightning-30b-a3b |
+| Hosting | Qwen self-hosted with vLLM on Kaggle; Gemini and Nemotron via API |
+| Tasks | BabyAI-MixedTrainLocal-v0/goto; Crafter default; MiniHack-MazeWalk-9x9-v0 |
+| Seeds | 42, 43, 44, 45, 46; one episode per task and seed |
+| Episode limit | 50 environment actions |
+| Generation | Temperature 0; at most 8,192 output tokens per call |
+| History | 16 text messages; no images |
+| Workers | One |
+| Nemotron built-in thinking | Enabled for all three agents |
 
-## Features
+The 50-step cap is our chosen study condition, not an assignment requirement.
+The 8,192-token limit follows BALROG's default configuration; it is an allowance, not a target response length.
+Identical numeric budgets do not guarantee equal reasoning compute across providers.
+API errors and missing final answers stop evaluation instead of becoming game scores.
+A critic call adds to the token use even though it does not add an environment action.
 
-- Comprehensive evaluation of agentic abilities
-- Support for both language and vision-language models
-- Integration with popular AI APIs and local deployment
-- Easy integration for custom agents, new environments and new models
+This study has 45 episodes per model, 135 in total. We will use only fresh results for the new report.
+Old code, results and the earlier draft report remain separately in the original workspace and branch.
 
-## Installation
+## Run on Kaggle
 
-We advise using conda for the installation
+Open `assignment_kaggle.ipynb`, enable Internet, and run the cells in order.
+The existing Kaggle notebook is `siddique200303/llm-assignment`.
+Select the model using `CLIENT` in its first code cell:
+- `nvidia`: CPU; grant access to Kaggle secret `NVIDIA_API_KEY`.
+- `gemini`: CPU; grant access to existing secret `GEMINI_API_KEY_1`. It is exposed to the child process as `GEMINI_API_KEY`. There is no key rotation.
+- `vllm`: GPU T4 x2. The notebook starts Qwen with a 32,768-token context window.
 
-```bash
-conda create -n balrog python=3.10 -y
-conda activate balrog
+No SSH connection is required. API availability and free-tier quotas must support the requested model.
+The notebook does not enable paid billing or call a separate test experiment.
+It downloads our public code from branch `siddique/assignment-fresh`.
 
-git clone https://github.com/balrog-ai/BALROG.git
-cd BALROG
-pip install -e .
-balrog-post-install
-```
+The final cell saves `assignment-results-fresh.zip`. Download it after each model.
+It contains summaries, trajectories, logs and a manifest recording settings, code version and package versions.
+Keep the three model archives for the report. Do not load the old results into this study.
+A fresh Kaggle runtime does not automatically retain results from a previous session.
 
-On Mac make sure you have `wget` installed for the `balrog-post-install`
+## Run from an existing Linux environment
 
-## Docker
-
-We have provided some docker images. Please see the [relevant README](docker/README.md).
-
-## ⚡️ Evaluate using vLLM locally
-
-We support running LLMs/VLMs locally using [vLLM](https://github.com/vllm-project/vllm). You can spin up a vLLM client and evaluate your agent on BALROG in the following way:
-
-```bash
-pip install vllm numpy==1.23
-vllm serve meta-llama/Llama-3.2-1B-Instruct --port 8080
-
-python eval.py \
-  agent.type=naive \
-  agent.max_image_history=0 \
-  agent.max_text_history=16 \
-  eval.num_workers=32 \
-  client.client_name=vllm \
-  client.model_id=meta-llama/Llama-3.2-1B-Instruct \
-  client.base_url=http://0.0.0.0:8080/v1
-```
-
-On Mac you might have to first export the following to suppress some fork() errors:
-
-```
-export OBJC_DISABLE_INITIALIZE_FORK_SAFETY=YES
-```
-
-Check out [vLLM](https://github.com/vllm-project/vllm) for more options on how to serve your models fast and efficiently.
-
-## 🛜 Evaluate using API
-
-We support how of the box clients for OpenAI, Anthropic and Google Gemini APIs. If you want to evaluate an agent using one of these APIs, you first have to set up your API key in one of two ways:
-
-You can either directly export it:
+Use Python 3.10 and install once:
 
 ```bash
-export OPENAI_API_KEY=<KEY>
-export ANTHROPIC_API_KEY=<KEY>
-export GEMINI_API_KEY=<KEY>
+python -m pip install -e . 'setuptools<81'
 ```
 
-Or you can modify the `SECRETS` file, adding your api keys.
-
-You can then run the evaluation with:
+Run one model at a time with the corresponding key set in the environment:
 
 ```bash
-python eval.py \
-  agent.type=naive \
-  agent.max_image_history=0 \
-  agent.max_text_history=16 \
-  eval.num_workers=16 \
-  client.client_name=openai \
-  client.model_id=gpt-4o-mini-2024-07-18
+python scripts/run_assignment.py --client nvidia --model nvidia/nemotron-3.5-lightning-30b-a3b
+python scripts/run_assignment.py --client gemini --model gemini-3.5-flash-lite
+python scripts/run_assignment.py --client vllm --model Qwen/Qwen2.5-7B-Instruct
 ```
 
-## Documentation
+Qwen requires an already running vLLM server on `http://127.0.0.1:18080/v1`.
+API models do not need vLLM.
+Completed agent/seed runs are reused only with matching recorded study settings.
+Interrupted batches retain their diagnostics; they are rerun unless complete.
+Keep credentials outside the code and report.
 
-- [Evaluation Guide](https://github.com/balrog-ai/BALROG/blob/main/docs/evaluation.md) - Detailed instructions for various evaluation scenarios
-- [Agent Development](https://github.com/balrog-ai/BALROG/blob/main/docs/agents.md) - Tutorial on creating custom agents
-- [Few Shot Learning](https://github.com/balrog-ai/BALROG/blob/main/docs/few_shot_learning.md) - Instructions on how to run Few Shot Learning
+## Analysis and submission
 
-We welcome contributions! Please see our [Contributing Guidelines](https://github.com/balrog-ai/BALROG/blob/main/docs/contribution.md) for details.
+After the runs, compare all three models for each exercise and compare the agents within each model.
+Report BabyAI and MiniHack task success rates within the cap. Crafter progression is the fraction of distinct achievements unlocked out of 22.
+Inspect trajectories for invalid actions, loops, revised plans and critic calls.
+Record sample counts and variation across seeds. Different seeds measure different scenarios, not repeated identical prompts.
+Separate environment failures, output truncation and API failures.
 
-## License
+Write one combined report answering the assignment questions, including the matrices, explanations, trajectory analysis, limitations and required reading.
+No fresh results or final report exist yet.
+Prepare `Ass2-1`, `Ass2-2` and `Ass2-3` packages with the required code, scripts, prompts and README.
+Preserve BALROG's licence. Do not include credentials, environment installations or temporary setup files.
 
-This project is licensed under the MIT License - see the [LICENSE](LICENSE) file for details.
-
-## Citation
-
-If you use BALROG in any of your work, please cite:
-
-```
-@article{paglieri2024balrog,
-  title={Benchmarking Agentic LLM and VLM Reasoning On Games},
-  author={Paglieri, Davide and Cupia{\l}, Bart{\l}omiej and Coward, Sam and Piterbarg, Ulyana and Wo{\l}czyk, Maciej and Khan, Akbir and Pignatelli, Eduardo and Kuci{\'n}ski, {\L}ukasz and Pinto, Lerrel and Fergus, Rob and Foerster, Jakob Nicolaus and Parker-Holder, Jack and Rockt{\"a}schel, Tim},
-  journal={arXiv preprint arXiv:2411.13543},
-  year={2024}
-}
-```
+BALROG's original documentation remains in `docs/`; its upstream repository is https://github.com/balrog-ai/BALROG.

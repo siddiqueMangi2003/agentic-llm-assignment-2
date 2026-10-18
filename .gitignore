@@ -165,6 +165,8 @@ cython_debug/
 /outputs
 /results
 /assignment_results
+/assignment_results_fresh
+/tmp/
 /submission
 /slurm-*.out
 /vllm-*.log
