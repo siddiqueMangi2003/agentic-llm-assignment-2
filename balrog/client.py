@@ -7,6 +7,7 @@ import csv
 import os
 from collections import namedtuple
 from io import BytesIO
+from types import SimpleNamespace
 
 from google import genai
 from google.genai import types
@@ -226,12 +227,33 @@ class OpenAIWrapper(LLMClientWrapper):
 
             if self.client_name.lower() == "nvidia":
                 api_kwargs["extra_body"] = {"chat_template_kwargs": {"enable_thinking": True}}
+                api_kwargs.update(stream=True, stream_options={"include_usage": True})
+                answer, reasoning = [], []
+                finish, usage = None, None
+                with self.client.chat.completions.create(**api_kwargs) as stream:
+                    for chunk in stream:
+                        if getattr(chunk, "usage", None) is not None:
+                            usage = chunk.usage
+                        if not chunk.choices:
+                            continue
+                        choice = chunk.choices[0]
+                        answer.append(choice.delta.content or "")
+                        reasoning.append(getattr(choice.delta, "reasoning_content", None) or "")
+                        if choice.finish_reason is not None:
+                            finish = choice.finish_reason
+                if finish is None:
+                    raise RuntimeError("NVIDIA stream ended before a completion marker")
+                return SimpleNamespace(
+                    choices=[SimpleNamespace(finish_reason=finish, message=SimpleNamespace(
+                        content="".join(answer), reasoning_content="".join(reasoning)))], usage=usage)
 
             return self.client.chat.completions.create(**api_kwargs)
 
         response = self.execute_with_retries(api_call)
         if response is None or not getattr(response, "choices", None):
             raise RuntimeError("LLM response has no choices")
+        if response.usage is None:
+            raise RuntimeError("The provider omitted token usage; no score was saved for this step")
 
         msg = getattr(response.choices[0], "message", None)
         content = getattr(msg, "content", None)

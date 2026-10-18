@@ -25,6 +25,7 @@ The 50-step cap is our chosen study condition, not an assignment requirement.
 The 8,192-token limit follows BALROG's default configuration; it is an allowance, not a target response length.
 Identical numeric budgets do not guarantee equal reasoning compute across providers.
 API errors and missing final answers stop evaluation instead of becoming game scores.
+NVIDIA responses are streamed with token usage requested. This transport change leaves the study settings unchanged; it does not guarantee protection from provider timeouts.
 A critic call adds to the token use even though it does not add an environment action.
 
 This study has 45 episodes per model, 135 in total. We will use only fresh results for the new report.

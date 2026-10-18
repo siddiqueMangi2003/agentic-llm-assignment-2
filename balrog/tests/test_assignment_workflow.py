@@ -3,6 +3,7 @@
 import ast
 import json
 import os
+from contextlib import nullcontext
 from pathlib import Path
 import subprocess
 import sys
@@ -87,14 +88,18 @@ def test_nvidia_preserves_reasoning_and_does_not_repeat_missing_final_answers(mo
     classes = [n for n in module.body if isinstance(n, ast.ClassDef)
                and n.name in ("LLMClientWrapper", "OpenAIWrapper")]
     sdk = Mock()
-    namespace = {"OpenAI": sdk, "os": os, "time": Mock(), "logger": Mock(),
+    namespace = {"OpenAI": sdk, "os": os, "time": Mock(), "logger": Mock(), "SimpleNamespace": SimpleNamespace,
                  "LLMResponse": lambda **kw: SimpleNamespace(**kw)}
     exec(compile(ast.Module(body=classes, type_ignores=[]), str(source), "exec"), namespace)
     monkeypatch.setenv("NVIDIA_API_KEY", "private-test-key")
-    response = SimpleNamespace(choices=[SimpleNamespace(
-        message=SimpleNamespace(content="north", reasoning_content="The exit is north."),
-        finish_reason="stop")], usage=SimpleNamespace(prompt_tokens=30, completion_tokens=15))
-    sdk.return_value.chat.completions.create.return_value = response
+    def chunks(content="north", finish="stop"):
+        yield SimpleNamespace(usage=None, choices=[SimpleNamespace(
+            delta=SimpleNamespace(content=None, reasoning_content="The exit is north."), finish_reason=None)])
+        yield SimpleNamespace(usage=None, choices=[SimpleNamespace(
+            delta=SimpleNamespace(content=content), finish_reason=finish)])
+        yield SimpleNamespace(choices=[], usage=SimpleNamespace(prompt_tokens=30, completion_tokens=15))
+
+    sdk.return_value.chat.completions.create.return_value = nullcontext(chunks())
     client = namespace["OpenAIWrapper"](SimpleNamespace(
         client_name="nvidia", model_id="model", base_url="https://integrate.api.nvidia.com/v1",
         timeout=60, generate_kwargs={"temperature": 0, "max_tokens": 8192},
@@ -105,13 +110,25 @@ def test_nvidia_preserves_reasoning_and_does_not_repeat_missing_final_answers(mo
     payload = sdk.return_value.chat.completions.create.call_args.kwargs
     assert payload["max_tokens"] == 8192 and payload["temperature"] == 0
     assert payload["extra_body"]["chat_template_kwargs"]["enable_thinking"] is True
+    assert payload["stream"] is True and payload["stream_options"] == {"include_usage": True}
     assert result.completion == "north" and result.reasoning == "The exit is north."
     assert result.output_tokens == 15
-    response.choices[0].message.content = None
-    response.choices[0].finish_reason = "length"
+    sdk.return_value.chat.completions.create.return_value = nullcontext(chunks(content=None, finish="length"))
     with pytest.raises(RuntimeError, match="No final action"):
         client.generate([])
     assert sdk.return_value.chat.completions.create.call_count == 2
+
+    def broken_stream():
+        yield SimpleNamespace(usage=None, choices=[SimpleNamespace(
+            delta=SimpleNamespace(content="wrong partial answer"), finish_reason=None)])
+        raise ConnectionError("connection lost")
+
+    sdk.return_value.chat.completions.create.side_effect = [
+        nullcontext(broken_stream()), nullcontext(chunks())]
+    result = client.generate([])
+    assert result.completion == "north"  # Failed stream fragments are discarded before retrying.
+    assert result.output_tokens == 15
+    assert sdk.return_value.chat.completions.create.call_count == 4
 
 
 def test_environment_secrets_work_without_a_secrets_file(tmp_path, monkeypatch):
