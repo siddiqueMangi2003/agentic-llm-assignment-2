@@ -226,7 +226,7 @@ class OpenAIWrapper(LLMClientWrapper):
                 api_kwargs["temperature"] = temperature
 
             if self.client_name.lower() == "nvidia":
-                api_kwargs["extra_body"] = {"chat_template_kwargs": {"enable_thinking": True}}
+                api_kwargs["extra_body"] = {"chat_template_kwargs": {"enable_thinking": False}}
                 api_kwargs.update(stream=True, stream_options={"include_usage": True})
                 answer, reasoning = [], []
                 finish, usage = None, None

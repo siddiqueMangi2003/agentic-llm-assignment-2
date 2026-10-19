@@ -19,13 +19,13 @@ The repetition rule is a simple signal of possible stagnation. It can trigger du
 | Generation | Temperature 0; at most 8,192 output tokens per call |
 | History | 16 text messages; no images |
 | Workers | One |
-| Nemotron built-in thinking | Enabled for all three agents |
+| Nemotron built-in thinking | Disabled for all three agents |
 
 The 50-step cap is our chosen study condition, not an assignment requirement.
 The 8,192-token limit follows BALROG's default configuration; it is an allowance, not a target response length.
 Identical numeric budgets do not guarantee equal reasoning compute across providers.
 API errors and missing final answers stop evaluation instead of becoming game scores.
-NVIDIA responses are streamed with token usage requested. This transport change leaves the study settings unchanged; it does not guarantee protection from provider timeouts.
+NVIDIA responses are streamed with token usage requested. Built-in thinking is disabled after the thinking-enabled pilot exhausted its output allowance without returning an action. Those pilot results are kept separately and excluded from the final Nemotron comparison. Our custom planning and reflection still run.
 A critic call adds to the token use even though it does not add an environment action.
 
 This study has 45 episodes per model, 135 in total. We will use only fresh results for the new report.
@@ -68,7 +68,7 @@ python scripts/run_assignment.py --client vllm --model Qwen/Qwen2.5-7B-Instruct
 Qwen requires an already running vLLM server on `http://127.0.0.1:18080/v1`.
 API models do not need vLLM.
 Completed agent/seed runs are reused only with matching recorded study settings.
-Interrupted batches retain their diagnostics; they are rerun unless complete.
+Interrupted batches use BALROG's native resume: completed episodes are retained, and unfinished episodes restart from their recorded seed. Previous attempt metadata is preserved in the manifest. Restore the saved results into the output folder before resuming in a new runtime.
 Keep credentials outside the code and report.
 
 ## Analysis and submission

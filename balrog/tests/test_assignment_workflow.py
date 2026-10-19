@@ -61,12 +61,42 @@ def test_resume_reuses_only_matching_completed_runs(tmp_path, monkeypatch, clien
     manifest = json.loads(manifests[0].read_text())
     assert manifest["settings"]["output_tokens"] == 8192
     if client == "nvidia":
-        assert manifest["settings"]["enable_thinking"] is True
+        assert manifest["settings"]["enable_thinking"] is False
     manifest["settings"]["output_tokens"] = 1024
     manifests[0].write_text(json.dumps(manifest))
     with pytest.raises(SystemExit):
         run_assignment.main()
     assert len(calls) == 3
+
+
+def test_partial_run_uses_native_episode_resume(tmp_path, monkeypatch):
+    monkeypatch.setenv("GEMINI_API_KEY", "private-test-key")
+    monkeypatch.setattr(run_assignment, "AGENTS", ("custom",))
+    monkeypatch.setattr(run_assignment, "SEEDS", (43,))
+    monkeypatch.setattr(run_assignment.subprocess, "check_output", lambda *a, **kw: "new-commit")
+    monkeypatch.setattr(run_assignment.importlib.metadata, "distributions", lambda: [])
+    monkeypatch.setattr(sys, "argv", ["run", "--client", "gemini", "--model", "model", "--output", str(tmp_path)])
+    destination = tmp_path / "gemini" / "model" / "custom" / "seed-43"
+    partial = destination / "unfinished"
+    partial.mkdir(parents=True)
+    episode = partial / "completed_run_00.json"
+    episode.write_text("completed episode")
+    manifest_path = destination / "run.json"
+    manifest_path.write_text(json.dumps({"settings": run_assignment.SETTINGS, "commit": "original-commit"}))
+    evaluate = Mock()
+    monkeypatch.setattr(run_assignment.subprocess, "run", evaluate)
+    run_assignment.main()
+    command = evaluate.call_args.args[0]
+    assert f"eval.resume_from={partial.as_posix()}" in command
+    assert episode.read_text() == "completed episode"
+    manifest = json.loads(manifest_path.read_text())
+    assert manifest["commit"] == "original-commit"
+    assert manifest["resumptions"][0]["commit"] == "new-commit"
+    manifest["settings"]["steps"] = 100
+    manifest_path.write_text(json.dumps(manifest))
+    with pytest.raises(SystemExit):
+        run_assignment.main()
+    assert evaluate.call_count == 1
 
 
 def test_failed_api_batch_stops_before_other_agents(tmp_path, monkeypatch):
@@ -109,7 +139,7 @@ def test_nvidia_preserves_reasoning_and_does_not_repeat_missing_final_answers(mo
                                 base_url="https://integrate.api.nvidia.com/v1", max_retries=0)
     payload = sdk.return_value.chat.completions.create.call_args.kwargs
     assert payload["max_tokens"] == 8192 and payload["temperature"] == 0
-    assert payload["extra_body"]["chat_template_kwargs"]["enable_thinking"] is True
+    assert payload["extra_body"]["chat_template_kwargs"]["enable_thinking"] is False
     assert payload["stream"] is True and payload["stream_options"] == {"include_usage": True}
     assert result.completion == "north" and result.reasoning == "The exit is north."
     assert result.output_tokens == 15
