@@ -93,6 +93,8 @@ class LLMClientWrapper:
                 retries += 1
                 logger.error(f"Retryable error during {func.__name__}: {e}. Retry {retries}/{self.max_retries}")
                 sleep_time = self.delay * (2 ** (retries - 1))  # Exponential backoff
+                if self.client_name.lower() == "nvidia" and status == 429:
+                    sleep_time = max(sleep_time, 60.0)
                 time.sleep(sleep_time)
         raise Exception(f"Failed to execute {func.__name__} after {self.max_retries} retries.")
 
@@ -154,6 +156,9 @@ def process_image_bedrock(image):
 
 class OpenAIWrapper(LLMClientWrapper):
     """Wrapper for interacting with the OpenAI API."""
+
+    # shortcut: shared within one process; coordinate globally before adding workers.
+    _last_nvidia_request_at = 0.0
 
     def __init__(self, client_config):
         """Initialize the OpenAIWrapper with the given configuration.
@@ -226,6 +231,8 @@ class OpenAIWrapper(LLMClientWrapper):
                 api_kwargs["temperature"] = temperature
 
             if self.client_name.lower() == "nvidia":
+                time.sleep(max(0.0, 3.0 - (time.monotonic() - OpenAIWrapper._last_nvidia_request_at)))
+                OpenAIWrapper._last_nvidia_request_at = time.monotonic()
                 api_kwargs["extra_body"] = {"chat_template_kwargs": {"enable_thinking": False}}
                 api_kwargs.update(stream=True, stream_options={"include_usage": True})
                 answer, reasoning = [], []

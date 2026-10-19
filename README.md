@@ -26,6 +26,7 @@ The 8,192-token limit follows BALROG's default configuration; it is an allowance
 Identical numeric budgets do not guarantee equal reasoning compute across providers.
 API errors and missing final answers stop evaluation instead of becoming game scores.
 NVIDIA responses are streamed with token usage requested. Built-in thinking is disabled after the thinking-enabled pilot exhausted its output allowance without returning an action. Those pilot results are kept separately and excluded from the final Nemotron comparison. Our custom planning and reflection still run.
+NVIDIA calls are spaced at least three seconds apart, including critic calls, with at least a minute of backoff after HTTP 429. Provider limits may still interrupt a run; pacing affects elapsed time, not the action or token allowance.
 A critic call adds to the token use even though it does not add an environment action.
 
 This study has 45 episodes per model, 135 in total. We will use only fresh results for the new report.

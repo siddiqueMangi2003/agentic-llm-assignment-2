@@ -120,6 +120,7 @@ def test_nvidia_preserves_reasoning_and_does_not_repeat_missing_final_answers(mo
     sdk = Mock()
     namespace = {"OpenAI": sdk, "os": os, "time": Mock(), "logger": Mock(), "SimpleNamespace": SimpleNamespace,
                  "LLMResponse": lambda **kw: SimpleNamespace(**kw)}
+    namespace["time"].monotonic.return_value = 100.0
     exec(compile(ast.Module(body=classes, type_ignores=[]), str(source), "exec"), namespace)
     monkeypatch.setenv("NVIDIA_API_KEY", "private-test-key")
     def chunks(content="north", finish="stop"):
@@ -159,6 +160,21 @@ def test_nvidia_preserves_reasoning_and_does_not_repeat_missing_final_answers(mo
     assert result.completion == "north"  # Failed stream fragments are discarded before retrying.
     assert result.output_tokens == 15
     assert sdk.return_value.chat.completions.create.call_count == 4
+
+    limited = RuntimeError("Too Many Requests")
+    limited.status_code = 429
+    sdk.return_value.chat.completions.create.side_effect = [limited, nullcontext(chunks())]
+    result = client.generate([])
+    assert result.completion == "north"
+    namespace["time"].sleep.assert_any_call(60.0)
+    sdk.return_value.chat.completions.create.side_effect = None
+    sdk.return_value.chat.completions.create.return_value = nullcontext(chunks())
+    namespace["time"].sleep.reset_mock()
+    namespace["OpenAIWrapper"](SimpleNamespace(
+        client_name="nvidia", model_id="model", base_url="https://integrate.api.nvidia.com/v1",
+        timeout=60, generate_kwargs={"temperature": 0, "max_tokens": 8192},
+        max_retries=5, delay=0, alternate_roles=False)).generate([])
+    namespace["time"].sleep.assert_called_once_with(3.0)
 
 
 def test_environment_secrets_work_without_a_secrets_file(tmp_path, monkeypatch):
